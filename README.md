@@ -13,6 +13,7 @@ but with Go instead of Rust.
 - Web framework: Gin. Runner ups: Chi, standard library + gorilla/mux. But I've
 never used Gin, so I'm trying it out. Seems like the only "real" framework for
 Go APIs, as many people prefer to just use the standard library.
+- PostgreSQL lib: pgx. Everyone likes pgx.
 
 ## Features
 - POST /quotes - Add quote
@@ -27,6 +28,13 @@ Data model:
   "quote": "My precious...",
 }
 ```
+
+## Feedback to FL0
+- Web UI could be snappier. A lot of delays when clicking around.
+- Make it more clear how to cache Docker build steps. My build takes 1 minute
+longer than necessary since dependences are downloaded again every time.
+- "DB name same as application name" use-case is very common. Show error
+message before I submit the form.
 
 ## Backlog
 - Add rest of the handlers
@@ -262,4 +270,66 @@ $ curl -X POST localhost:8080 -d {}
 
 $ curl -X POST localhost:8080 -d '{"book": "LOTR", "quote": "Precioussss"}'
 {"uuid":"1234-TODO-1234","book":"LOTR","quote":"Precioussss"}%
+```
+
+### Add a database and connect to it
+Open your FL0 project and add a new PostgreSQL database. Name it the same as
+your project. Realize that FL0 prohibits this. In anger, append `-db`. Success.
+
+Take a look at the connection settings. There is no need to copy them into the
+environment variables by hand. Instead, go the container environment variables
+and use the Import database credentials button. Save.
+
+This will add a bunch of variables:
+- DATABASE_URL
+- PGHOST
+- PGDATABASE
+- PGPORT
+- PGUSER
+- PGPASSWORD
+- PGSSLMODE (=`require`)
+
+Add pgx dependency.
+```shell
+go get github.com/jackc/pgx/v5
+```
+
+Connect to the database and verify that connection is working:
+```golang
+func main() {
+	ctx := context.Background()
+
+	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close(ctx)
+
+	dbHealthCheck(conn)
+
+	r := setupRouter()
+	r.Run()
+}
+
+func dbHealthCheck(conn *pgx.Conn) {
+	healthCheckCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var result int
+	err := conn.QueryRow(healthCheckCtx, "SELECT 1 + 1;").Scan(&result)
+	if err != nil || result != 2 {
+		panic(err)
+	}
+}
+```
+
+Copy the database URL and export it to a local shell variable, so we can run our local instance against it.
+```shell
+export DATABASE_URL='postgres://fl0user:password@my-instance.eu-central-1.aws.neon.fl0.io:5432/most-beloved-go-crud-api-db?sslmode=require'
+go run main.go
+```
+
+Verify that it also works when deployed to FL0.
+```shell
+git commit -am "connect to db"
+git push
 ```
