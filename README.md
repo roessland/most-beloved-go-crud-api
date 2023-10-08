@@ -14,6 +14,8 @@ but with Go instead of Rust.
 never used Gin, so I'm trying it out. Seems like the only "real" framework for
 Go APIs, as many people prefer to just use the standard library.
 - PostgreSQL lib: pgx. Everyone likes pgx.
+- DB migrations: Atlas. I've used golang-migrate before, but Atlas promises a
+nice declarative way to automatically create migrations.
 
 ## Features
 - POST /quotes - Add quote
@@ -35,6 +37,8 @@ Data model:
 longer than necessary since dependences are downloaded again every time.
 - "DB name same as application name" use-case is very common. Show error
 message before I submit the form.
+- Provide a nice way to enable running migrations as part of deployment,
+instead of during process startup, to enable 
 
 ## Backlog
 - Add rest of the handlers
@@ -332,4 +336,232 @@ Verify that it also works when deployed to FL0.
 ```shell
 git commit -am "connect to db"
 git push
+```
+
+### Setup sqlc and write some queries
+
+Install the CLI tool. https://docs.sqlc.dev/en/stable/overview/install.html
+
+```shell
+brew install sqlc # MacOS
+```
+
+Add sqlc config file `sqlc.yaml`
+
+```yaml
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "query.sql"
+    schema: "schema.sql"
+    gen:
+      go:
+        package: "db"
+        sql_package: "pgx/v5"
+        out: "db"
+```
+
+Follow the Atlas guide for sqlc to create migrations:
+https://atlasgo.io/guides/frameworks/sqlc-versioned
+
+
+Add some queries:
+
+```sql
+-- query.sql
+-- name: CreateQuote :one
+INSERT INTO quotes (id, book, quote, inserted_at, updated_at)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
+```
+
+Add the initial migration:
+```sql
+-- schema.sql
+CREATE TABLE IF NOT EXISTS  quotes (
+  id UUID PRIMARY KEY,
+  book varchar NOT NULL,
+  quote TEXT NOT NULL,
+  inserted_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL,
+  UNIQUE (book, quote)
+);
+```
+
+Generate a go-package named `db`.
+
+```shell
+sqlc generate
+```
+
+#### Sidenote: Migration strategy
+Running migrations on application startup is an anti-pattern, since the
+migrations can take a long time, and health checks will fail for that duration.
+Migrations should instead be run in the deployment pipeline, before the new
+application version is deployed. This does not seem to be supported by FL0 in
+the free plan, since it's only possible to run one container, so I will run
+migrations on startup regardless, since it's just a simple demo application.
+
+### Setup migrations with Atlas
+Atlas provides a declarative approach where we define the desired DB state, and
+Atlas comes up with a migration we can apply.
+
+The target state can be described with HCL (HashiCorp Configuration Language).
+Considering the recent HashiCorp licensing issues I'm hesitant to use HCL, but
+HCL's licensing seems to remain MPL (Mozilla Public License).
+
+```shell
+brew install ariga/tap/atlas
+```
+
+Run the initial migration:
+```shell
+atlas schema apply -u "$DATABASE_URL" --to file://schema.sql --dev-url "$DATABASE_URL" -s public
+```
+
+Note that Atlas requires a dev-database to parse SQL code, and we simply reused
+the dev-database for this. Atlas also has a method to spin up a local DB using
+a Docker container, but this didn't work for me. (`Error: cannot diff a schema
+with a database connection: "" <> "public"`).
+
+Login with `psql` and verify that the changes were applied:
+
+```shell
+$ psql "$DATABASE_URL"
+most-beloved-go-crud-api-db=> \d quotes
+                          Table "public.quotes"
+   Column    |           Type           | Collation | Nullable | Default
+-------------+--------------------------+-----------+----------+---------
+ id          | uuid                     |           | not null |
+ book        | character varying        |           | not null |
+ quote       | text                     |           | not null |
+ inserted_at | timestamp with time zone |           | not null |
+ updated_at  | timestamp with time zone |           | not null |
+Indexes:
+    "quotes_pkey" PRIMARY KEY, btree (id)
+    "quotes_book_quote_key" UNIQUE, btree (book, quote)
+```
+Success!
+
+### Inject DB into handlers, UUID shenanigans
+Best practice is to inject dependencies. This can can be done with a closure,
+or by making the handler functions into struct methods.
+
+Use a more ergonomic UUID type:
+```shell
+go get github.com/google/uuid
+```
+
+sqlc.yaml. Remember to `sqlc generate` after this.
+```sqlc
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "query.sql"
+    schema: "schema.sql"
+    gen:
+      go:
+        package: "db"
+        sql_package: "pgx/v5"
+        out: "db"
+        overrides:
+        - db_type: "uuid"
+          go_type: "github.com/google/uuid.UUID"
+        - db_type: "uuid"
+          go_type: "github.com/google/uuid.NullUUID"
+```
+
+Inject DB into handlers:
+
+handlers.go
+```golang
+import (
+	"context"
+	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/roessland/most-beloved-go-crud-api/db"
+)
+
+//...
+
+// Quotes holds resources used by handlers
+type Quotes struct {
+	Queries *db.Queries
+}
+
+// Create creates a new quote
+func (quotes *Quotes) Create(c *gin.Context) {
+	var input CreateQuoteInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := quotes.create(c, input)
+	if err != nil {
+		// TODO: Don't return the actual error in release mode
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, result)
+}
+
+// create creates a new quote
+func (quotes *Quotes) create(ctx context.Context, input CreateQuoteInput) (*CreateQuoteResult, error) {
+	dbParams := db.CreateQuoteParams{
+		ID:         uuid.New(),
+		Book:       input.Book,
+		Quote:      input.Quote,
+		InsertedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		UpdatedAt:  pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}
+	dbQuote, err := quotes.Queries.CreateQuote(ctx, dbParams)
+	if err != nil {
+		return nil, err
+	}
+	return &CreateQuoteResult{
+		UUID:  dbQuote.ID.String(),
+		Book:  dbQuote.Book,
+		Quote: dbQuote.Quote,
+	}, nil
+}
+```
+
+main.go:
+```golang
+// ...
+func setupRouter(queries *db.Queries) *gin.Engine {
+	r := gin.Default()
+
+	quotes := &handlers.Quotes{
+		Queries: queries,
+	}
+
+	r.GET("/", handlers.Health)
+	r.POST("/", quotes.Create)
+
+	return r
+}
+
+func main() {
+	ctx := context.Background()
+
+	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close(ctx)
+	queries := db.New(conn)
+
+	dbHealthCheck(conn)
+
+	r := setupRouter(queries)
+	r.Run()
+}
+// ...
 ```

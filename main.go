@@ -7,14 +7,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"github.com/roessland/most-beloved-go-crud-api/db"
 	"github.com/roessland/most-beloved-go-crud-api/handlers"
 )
 
-func setupRouter() *gin.Engine {
+func setupRouter(queries *db.Queries) *gin.Engine {
 	r := gin.Default()
 
+	quotes := &handlers.Quotes{
+		Queries: queries,
+	}
+
 	r.GET("/", handlers.Health)
-	r.POST("/", handlers.Create)
+	r.POST("/", quotes.Create)
 
 	return r
 }
@@ -27,10 +32,11 @@ func main() {
 		panic(err)
 	}
 	defer conn.Close(ctx)
+	queries := db.New(conn)
 
 	dbHealthCheck(conn)
 
-	r := setupRouter()
+	r := setupRouter(queries)
 	r.Run()
 }
 
