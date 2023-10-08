@@ -2,7 +2,7 @@
 ARG APP_NAME=most-beloved-go-crud-api
 
 # Build stage
-FROM golang:1.19 as build
+FROM golang:1.21 as build
 ARG APP_NAME
 ENV APP_NAME=$APP_NAME
 WORKDIR /app
