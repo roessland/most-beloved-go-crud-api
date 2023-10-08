@@ -18,5 +18,6 @@ func setupRouter() *gin.Engine {
 
 func main() {
 	r := setupRouter()
-	r.Run("0.0.0.0:3000")
+	// Listen on PORT env var, or on 3000 if not set
+	r.Run()
 }

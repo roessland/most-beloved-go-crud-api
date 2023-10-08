@@ -67,7 +67,7 @@ go get -u github.com/gin-gonic/gin
 ````
 
 Add web server [boilerplate](https://raw.githubusercontent.com/gin-gonic/examples/master/basic/main.go) to `main.go`:
-```shell
+```
 package main
 
 import (
@@ -88,7 +88,8 @@ func setupRouter() *gin.Engine {
 
 func main() {
 	r := setupRouter()
-	r.Run("0.0.0.0:3000")
+	// Listen on PORT env var, or on 3000 if not set
+	r.Run()
 }
 ```
 
@@ -114,23 +115,40 @@ Sign up for FL0 (I promise, this is not an ad):
 
 ### Add Dockerfile
 Follow docs: https://docs.fl0.com/docs/builds/dockerfile/go
+
+Changes:
+- Go 1.21 instead of Go 1.19 as in docs
+- Add gcompat to enable running glibc programs.
+
 ```Dockerfile
 ARG APP_NAME=most-beloved-go-crud-api
 
 # Build stage
-FROM golang:1.19 as build
+FROM golang:1.21 as build
 ARG APP_NAME
 ENV APP_NAME=$APP_NAME
 WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
 COPY . .
-RUN go mod download
 RUN go build -o /$APP_NAME
 
 # Production stage
 FROM alpine:latest as production
+RUN apk add gcompat
 ARG APP_NAME
 ENV APP_NAME=$APP_NAME
 WORKDIR /root/
 COPY --from=build /$APP_NAME ./
 CMD ./$APP_NAME
+```
+
+Usage:
+```shell
+docker build -t most-beloved-go-crud-api .
+```
+
+Run it:
+```shell
+docker run -p 3000:3080 -e PORT=3000 most-beloved-go-crud-api
 ```
