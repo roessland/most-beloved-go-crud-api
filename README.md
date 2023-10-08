@@ -152,3 +152,14 @@ Run it:
 ```shell
 docker run -p 3000:3080 -e PORT=3000 most-beloved-go-crud-api
 ```
+
+View it on http://localhost:3000
+
+### Run it in the cloud
+```
+git push
+```
+Follow the build at FL0's web UI: https://app.fl0.com/roessland/most-beloved-go-crud-api/dev/most-beloved-go-crud-api/deployments
+
+Open the URL near the top to see it live: https://griffith-koala-cded.1.ie-1.fl0.io
+
