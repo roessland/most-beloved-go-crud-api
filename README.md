@@ -124,6 +124,8 @@ Changes:
 - Add gcompat to enable running glibc programs.
 - Always run Gin in release mode when running as a Docker container. Go does
 not need to be compiled for release.
+- Put go mod download before `COPY . .` to avoid re-downloading dependencies if
+go.mod and go.sum are unchanged.
 
 ```dockerfile
 ARG APP_NAME=most-beloved-go-crud-api
@@ -187,6 +189,77 @@ Run `docker build -t most-beloved-go-crud-api .; docker run -e PORT=80 -it --rm
 -p 8080:80 -e PORT=80 most-beloved-go-crud-api` and then `curl localhost:8080`
 to see output. By default, nothing is logged at startup during release mode.
 
+Verify release mode is working by deploying and looking at logs:
+
 ```shell
+git add handlers/
 git commit -am "make handlers package"
+```
+
+Now, in FL0 -> Environment variables, add `GIN_MODE=debug`, click Save, then
+redeploy the latest deployment (under sandwich menu). View the logs. Verify
+that we are now back in debug mode.
+
+### Add Create endpoint (no DB)
+We want to parse the POST body JSON to a struct. In web framework-speak this is
+called model binding. [Gin docs for model binding and
+validation](https://gin-gonic.com/docs/examples/binding-and-validation/).
+
+Add a new Create route. Remember to register it.
+Add input and result structs for model binding.
+
+```golang
+  // main.go
+	r.POST("/", handlers.Create)
+```
+
+```golang
+package handlers
+
+type CreateQuoteInput struct {
+	Book  string `json:"book" binding:"required"`
+	Quote string `json:"quote" binding:"required"`
+}
+
+type CreateQuoteResult struct {
+	UUID  string `json:"uuid"`
+	Book  string `json:"book"`
+	Quote string `json:"quote"`
+}
+
+func Health(c *gin.Context) {
+	c.String(http.StatusOK, "OK")
+}
+
+// Create creates a new quote
+func Create(c *gin.Context) {
+	var input CreateQuoteInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result := createQuote(input)
+
+	c.JSON(http.StatusCreated, result)
+}
+
+func createQuote(request CreateQuoteInput) CreateQuoteResult {
+	// TODO:: Save to DB
+	return CreateQuoteResult{
+		UUID:  "1234-TODO-1234",
+		Book:  request.Book,
+		Quote: request.Quote,
+	}
+}
+```
+
+Test it:
+```shell
+$ go run main.go
+$ curl -X POST localhost:8080 -d {}
+{"error":"Key: 'CreateQuoteInput.Book' Error:Field validation for 'Book' failed on the 'required' tag\nKey: 'CreateQuoteInput.Quote' Error:Field validation for 'Quote' failed on the 'required' tag"}%
+
+$ curl -X POST localhost:8080 -d '{"book": "LOTR", "quote": "Precioussss"}'
+{"uuid":"1234-TODO-1234","book":"LOTR","quote":"Precioussss"}%
 ```
