@@ -38,7 +38,9 @@ longer than necessary since dependences are downloaded again every time.
 - "DB name same as application name" use-case is very common. Show error
 message before I submit the form.
 - Provide a nice way to enable running migrations as part of deployment,
-instead of during process startup, to enable 
+instead of during process startup, or from my local machine. Alternatively a
+method to control the deployment via GitHub Actions, so that the application
+isn't deployed until the migration is done.
 
 ## Backlog
 - Add rest of the handlers
@@ -581,4 +583,8 @@ $ psql "$DATABASE_URL"
  0cfd700a-818f-46dd-a758-612da4f294e6 | LOTR | Preciousss  | 2023-10-08 16:48:16.523357+00 | 2023-10-08 16:48:16.523357+00
 ```
 
-Commit code and push to cloud.
+Commit code and push to cloud. Try it out.
+```shell
+❯ curl -X POST https://griffith-koala-cded.1.ie-1.fl0.io -d '{"book": "LOTR", "quote": "Yolo"}'
+{"uuid":"91ddcc05-fca8-46e1-b072-c733a50c96b4","book":"LOTR","quote":"Yolo"}%
+```

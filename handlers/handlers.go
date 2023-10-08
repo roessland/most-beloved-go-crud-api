@@ -17,7 +17,7 @@ type CreateQuoteInput struct {
 }
 
 type CreateQuoteResult struct {
-	UUID  string `json:"uuid"`
+	ID    string `json:"id"`
 	Book  string `json:"book"`
 	Quote string `json:"quote"`
 }
@@ -63,7 +63,7 @@ func (quotes *Quotes) create(ctx context.Context, input CreateQuoteInput) (*Crea
 		return nil, err
 	}
 	return &CreateQuoteResult{
-		UUID:  dbQuote.ID.String(),
+		ID:    dbQuote.ID.String(),
 		Book:  dbQuote.Book,
 		Quote: dbQuote.Quote,
 	}, nil
