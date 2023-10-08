@@ -17,4 +17,5 @@ ARG APP_NAME
 ENV APP_NAME=$APP_NAME
 WORKDIR /root/
 COPY --from=build /$APP_NAME ./
+ENV GIN_MODE=release
 CMD ./$APP_NAME

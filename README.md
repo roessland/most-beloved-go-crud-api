@@ -29,7 +29,10 @@ Data model:
 ```
 
 ## Backlog
-Switch to release mode when running in cloud.
+- Add rest of the handlers
+- Add sqlc
+- Add migrations and SQL
+- Add pg DB in FL0.
 
 ## Dev log
 Make new project:
@@ -119,6 +122,8 @@ Follow docs: https://docs.fl0.com/docs/builds/dockerfile/go
 Changes:
 - Go 1.21 instead of Go 1.19 as in docs
 - Add gcompat to enable running glibc programs.
+- Always run Gin in release mode when running as a Docker container. Go does
+not need to be compiled for release.
 
 ```dockerfile
 ARG APP_NAME=most-beloved-go-crud-api
@@ -140,6 +145,7 @@ ARG APP_NAME
 ENV APP_NAME=$APP_NAME
 WORKDIR /root/
 COPY --from=build /$APP_NAME ./
+ENV GIN_MODE=release
 CMD ./$APP_NAME
 ```
 
@@ -163,3 +169,24 @@ Follow the build at FL0's web UI: https://app.fl0.com/roessland/most-beloved-go-
 
 Open the URL near the top to see it live: https://griffith-koala-cded.1.ie-1.fl0.io
 
+
+### Move routes to a separate package
+To keep it clean when adding more handlers. Remember to rename to capital case
+so it's exported from the handlers package.
+```golang
+// handlers/handlers.go
+package handlers
+func Health(c *gin.Context) {
+	c.String(http.StatusOK, "OK")
+}
+```
+
+### Run Gin in release mode by default
+Add `ENV GIN_MODE=release` to the last stage in the Dockerfile.
+Run `docker build -t most-beloved-go-crud-api .; docker run -e PORT=80 -it --rm
+-p 8080:80 -e PORT=80 most-beloved-go-crud-api` and then `curl localhost:8080`
+to see output. By default, nothing is logged at startup during release mode.
+
+```shell
+git commit -am "make handlers package"
+```

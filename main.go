@@ -1,17 +1,14 @@
 package main
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
+	"github.com/roessland/most-beloved-go-crud-api/handlers"
 )
 
 func setupRouter() *gin.Engine {
 	r := gin.Default()
 
-	r.GET("/", func(c *gin.Context) {
-		c.String(http.StatusOK, "OK")
-	})
+	r.GET("/", handlers.Health)
 
 	return r
 }
