@@ -565,3 +565,20 @@ func main() {
 }
 // ...
 ```
+
+Try it out:
+```shell
+go run main.go
+
+❯ curl -X POST localhost:8080 -d '{"book": "LOTR", "quote": "Preciousss"}'
+{"uuid":"0cfd700a-818f-46dd-a758-612da4f294e6","book":"LOTR","quote":"Preciousss"}
+
+❯ curl -X POST localhost:8080 -d '{"book": "LOTR", "quote": "Preciousss"}'
+{"error":"ERROR: duplicate key value violates unique constraint \"quotes_book_quote_key\" (SQLSTATE 23505)"}
+
+$ psql "$DATABASE_URL"
+=> select * from quotes;
+ 0cfd700a-818f-46dd-a758-612da4f294e6 | LOTR | Preciousss  | 2023-10-08 16:48:16.523357+00 | 2023-10-08 16:48:16.523357+00
+```
+
+Commit code and push to cloud.
