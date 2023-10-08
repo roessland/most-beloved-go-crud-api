@@ -21,7 +21,7 @@ Go APIs, as many people prefer to just use the standard library.
 - DELETE /quotes/{id} - Deletes quote
 
 Data model:
-```go
+```json
 {
   "book": "The Hobbit",
   "quote": "My precious...",
@@ -40,12 +40,12 @@ go mod init github.com/roessland/most-beloved-go-crud-api
 ```
 
 Make main executable:
-```
+```shell
 touch main.go
 ```
 
 Make GitHub repository.
-```
+```shell
 # use web UI
 # add MIT license, no readme, Go .gitignore
 ```
@@ -67,7 +67,7 @@ go get -u github.com/gin-gonic/gin
 ````
 
 Add web server [boilerplate](https://raw.githubusercontent.com/gin-gonic/examples/master/basic/main.go) to `main.go`:
-```
+```golang
 package main
 
 import (
@@ -120,7 +120,7 @@ Changes:
 - Go 1.21 instead of Go 1.19 as in docs
 - Add gcompat to enable running glibc programs.
 
-```Dockerfile
+```dockerfile
 ARG APP_NAME=most-beloved-go-crud-api
 
 # Build stage
@@ -156,7 +156,7 @@ docker run -p 3000:3080 -e PORT=3000 most-beloved-go-crud-api
 View it on http://localhost:3000
 
 ### Run it in the cloud
-```
+```shell
 git push
 ```
 Follow the build at FL0's web UI: https://app.fl0.com/roessland/most-beloved-go-crud-api/dev/most-beloved-go-crud-api/deployments
